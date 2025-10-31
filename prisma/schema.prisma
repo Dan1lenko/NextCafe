@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // <-- Змінили
+  url      = env("DATABASE_URL") // <-- Тепер читаємо з env
+}
+
+// -- Моделі для NextAuth --
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? 
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? 
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String? // Для входу за паролем
+  accounts      Account[]
+  sessions      Session[]
+  orders        Order[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// -- Моделі для нашого Кафе --
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  imageUrl    String?
+  orderItems  OrderItem[]
+}
+// 1. Новий "Enum" (список) для статусів замовлення
+// Це дозволить нам відстежувати, чи замовлення "В обробці", "Виконано" тощо.
+enum OrderStatus {
+  PENDING   // В обробці
+  COMPLETED // Виконано
+  CANCELLED // Скасовано
+}
+
+// 2. Нова модель "Order" (Замовлення)
+// Тут зберігається загальна інформація про замовлення:
+// хто замовив, яка загальна сума і який статус.
+model Order {
+  id          String      @id @default(cuid())
+  createdAt   DateTime    @default(now())
+  totalPrice  Float
+  status      OrderStatus @default(PENDING) // За замовчуванням - "В обробці"
+
+  // Зв'язок: "Хто" зробив це замовлення?
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+
+  // Зв'язок: "Що" входить у це замовлення?
+  // Це список "Позицій Замовлення" (OrderItems)
+  items       OrderItem[]
+}
+
+// 3. Нова модель "OrderItem" (Позиція в замовленні)
+// Це конкретний товар УСЕРЕДИНІ замовлення.
+// Наприклад: 2 "Кави" - це один OrderItem.
+model OrderItem {
+  id        String @id @default(cuid())
+  quantity  Int    // Кількість (напр., 2)
+  price     Float  // Ціна, за якою купили (напр., 45.50)
+
+  // Зв'язок: "До якого" замовлення належить ця позиція?
+  orderId   String
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade) // onDelete: Cascade - якщо видалити Order, видаляться і його OrderItem
+
+  // Зв'язок: "Який" це товар?
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+}
