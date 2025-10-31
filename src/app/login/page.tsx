@@ -1,54 +1,49 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation"; // 1. Імпортуємо useSearchParams
 import { useState } from "react";
 
-// Ми будемо мати два "режими" для цієї сторінки
 type Mode = "login" | "register";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("login");
+  const searchParams = useSearchParams(); // 2. Отримуємо доступ до параметрів URL
+  const callbackUrl = searchParams.get("callbackUrl"); // 3. Шукаємо наш callbackUrl
 
-  // Стани для полів форми
+  const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  // Стани для помилок та повідомлень
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // --- ОБРОБНИК ДЛЯ ВХОДУ (у тебе він вже є) ---
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(""); // Скидаємо помилку
+    setError("");
 
     const result = await signIn("credentials", {
-      redirect: false, // Ми керуємо перенаправленням самі
+      redirect: false, // Ми все ще керуємо редиректом самі
       email,
       password,
     });
 
     if (result?.ok) {
-      // Успішний вхід!
-      // NextAuth автоматично перенаправить на callbackUrl (/order)
-      // Але ми можемо зробити це і примусово:
-      router.push("/order");
+      // 4. УСПІХ! Перенаправляємо на callbackUrl (якщо він є)
+      //    або на головну сторінку, якщо його немає.
+      router.push(callbackUrl || "/"); // <-- ОСЬ ГОЛОВНА ЗМІНА
+      router.refresh(); // Оновлюємо кеш, щоб Navbar оновився
     } else {
       setError("Невірний email або пароль");
     }
   };
 
-  // --- НОВИЙ ОБРОБНИК ДЛЯ РЕЄСТРАЦІЇ ---
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
     try {
-      // Робимо запит до нашого API /api/register
       const res = await fetch("/api/register", {
         method: "POST",
         headers: {
@@ -65,19 +60,17 @@ export default function LoginPage() {
 
       if (res.ok) {
         setSuccess("Користувач успішно створений! Тепер можете увійти.");
-        // Скидаємо поля і переключаємо на логін
-        setName("");
-        setEmail("");
-        setPassword("");
         setMode("login");
       } else {
-        // Показуємо помилку з сервера
         setError(data.error || "Щось пішло не так");
       }
     } catch (err) {
       setError("Помилка підключення до сервера");
     }
   };
+
+  // ... (вся твоя JSX-розмітка залишається без змін)
+  // ... (просто скопіюй весь код, включаючи JSX з твого файлу)
 
   // --- КОД ДЛЯ ВІДОБРАЖЕННЯ (JSX) ---
   return (
@@ -168,7 +161,6 @@ export default function LoginPage() {
         <div className="mt-4 text-center">
           <button
             onClick={() => {
-              // Перемикаємо режим і скидаємо помилки/поля
               setMode(mode === "login" ? "register" : "login");
               setError("");
               setSuccess("");
